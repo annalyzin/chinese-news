@@ -1,0 +1,48 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Ruby annotation styling ─────────────────────────────────────────────────
+   Uses inline-flex column layout for cross-browser consistency.
+   Native CSS ruby rendering has historical inconsistencies in Safari/Firefox.
+   ─────────────────────────────────────────────────────────────────────────── */
+ruby {
+  display: inline-flex;
+  flex-direction: column-reverse;
+  align-items: center;
+  vertical-align: bottom;
+  line-height: 1;
+  margin: 0 1px;
+}
+
+rt {
+  display: block;
+  font-size: 0.6em;
+  line-height: 1.2;
+  color: #9ca3af; /* gray-400 */
+  text-align: center;
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+  user-select: none;
+  padding-bottom: 2px;
+}
+
+/* Chinese sentence container — generous line-height to accommodate rt above */
+.chinese-sentence {
+  line-height: 3;
+  font-size: 1.125rem; /* 18px */
+  word-break: keep-all;
+}
+
+/* Non-ruby tokens (English, numbers, punctuation) must share the same
+   vertical alignment and line-height as ruby elements so they sit on the
+   Chinese character line, not the pinyin line */
+.chinese-sentence span {
+  vertical-align: bottom;
+  line-height: 1;
+}
+
+/* Hover: highlight pinyin */
+ruby:hover rt {
+  color: #dc2626; /* red-600 */
+}
