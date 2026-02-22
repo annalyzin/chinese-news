@@ -36,15 +36,9 @@ export async function fetchNews(): Promise<NewsArticle[]> {
         title: item.title ?? '',
         link: item.link ?? '',
         description: item.contentSnippet ?? null,
-        content: null, // full content scraped on demand
         pubDate: item.pubDate ?? new Date().toISOString(),
-        source_id: '8world',
-        source_name: '8world',
-        source_url: 'https://www.8world.com',
         image_url: imageUrl,
         category: item.categories ?? ['新加坡'],
-        language: 'zh',
-        country: ['singapore'],
       };
     });
 }

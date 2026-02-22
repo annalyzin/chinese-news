@@ -35,5 +35,5 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# article cache (processed by Claude)
+# article cache
 /cache/

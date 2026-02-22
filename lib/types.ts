@@ -3,15 +3,9 @@ export interface NewsArticle {
   title: string;
   link: string;
   description: string | null;
-  content: string | null;
   pubDate: string;
-  source_id: string;
-  source_name: string;
-  source_url: string;
   image_url: string | null;
   category: string[];
-  language: string;
-  country: string[];
 }
 
 export interface Token {
@@ -26,9 +20,8 @@ export interface ProcessedSentence {
 
 export interface ProcessedArticle {
   sentences: ProcessedSentence[];
-  // Optional for backwards-compat with older cache entries
-  titleSentence?: ProcessedSentence;
-  titleEnglish?: string;
+  titleSentence: ProcessedSentence;
+  titleEnglish: string;
   processedAt: string;
   articleId: string;
 }

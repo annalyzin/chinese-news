@@ -1,5 +1,5 @@
 {
-  "name": "chinese-news-temp",
+  "name": "learn-chinese-news",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -11,7 +11,6 @@
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
     "@mozilla/readability": "^0.6.0",
-    "@types/jsdom": "^27.0.0",
     "@vercel/blob": "^2.3.0",
     "jsdom": "^28.1.0",
     "next": "14.2.35",
@@ -20,6 +19,7 @@
     "rss-parser": "^3.13.0"
   },
   "devDependencies": {
+    "@types/jsdom": "^27.0.0",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
