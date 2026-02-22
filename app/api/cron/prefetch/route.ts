@@ -20,7 +20,8 @@ export async function GET(request: NextRequest) {
   const results = await Promise.allSettled(
     articles.map(async (article) => {
       const cached = await getCachedArticle(article.link);
-      if (cached?.titleEnglish) return 'skipped';
+      const isMock = cached?.titleEnglish === '[mock translation]';
+      if (cached?.titleEnglish && !(isMock && process.env.GOOGLE_API_KEY)) return 'skipped';
 
       const scraped = await scrapeArticleText(article.link);
       const text = scraped || article.description || article.title;

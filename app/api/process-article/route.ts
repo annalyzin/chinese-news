@@ -23,10 +23,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Return cached result if it has all required fields (instant)
-    // If titleEnglish is missing, the entry is stale — fall through to re-process
+    // Return cached result if it has a real translation (instant)
+    // Skip mock entries when Gemini is available so they get re-processed
     const cached = await getCachedArticle(articleUrl);
-    if (cached?.titleEnglish) {
+    const isMock = cached?.titleEnglish === '[mock translation]';
+    if (cached?.titleEnglish && !(isMock && process.env.GOOGLE_API_KEY)) {
       return NextResponse.json(cached);
     }
 
