@@ -7,6 +7,7 @@ import { scrapeArticleText } from '@/lib/scraper';
 export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
+  console.log('[process-article] GOOGLE_API_KEY set:', !!process.env.GOOGLE_API_KEY);
   try {
     const body = await request.json();
     const { articleId, articleUrl, articleText, articleTitle } = body as {
@@ -36,6 +37,7 @@ export async function POST(request: NextRequest) {
     const titleToProcess = articleTitle || '';
 
     const processed = await processArticle(textToProcess, titleToProcess, articleId);
+    console.log('[process-article] titleEnglish:', processed.titleEnglish);
 
     // Persist to cache for future visits
     await setCachedArticle(articleUrl, processed);
