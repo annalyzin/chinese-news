@@ -1,7 +1,7 @@
 import { fetchNews } from '@/lib/news';
+import { getCachedArticle } from '@/lib/article-cache';
 import type { NewsArticle } from '@/lib/types';
 import { ArticleCard } from './components/ArticleCard';
-import { PrefetchArticles } from './components/PrefetchArticles';
 
 // Revalidate every 24 hours
 export const revalidate = 86400;
@@ -15,6 +15,14 @@ export default async function HomePage() {
   } catch (e) {
     error = e instanceof Error ? e.message : 'Failed to load news';
   }
+
+  // Fetch cached English titles server-side (parallel)
+  const titles = await Promise.all(
+    articles.map(async (a) => {
+      const cached = await getCachedArticle(a.link);
+      return cached?.titleEnglish ?? null;
+    })
+  );
 
   return (
     <main className="max-w-6xl mx-auto px-4 sm:px-6 py-10">
@@ -41,14 +49,15 @@ export default async function HomePage() {
           No articles available. Check back later.
         </p>
       ) : (
-        <>
-          <PrefetchArticles articles={articles} />
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {articles.map((article) => (
-              <ArticleCard key={article.article_id} article={article} />
-            ))}
-          </div>
-        </>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {articles.map((article, i) => (
+            <ArticleCard
+              key={article.article_id}
+              article={article}
+              titleEnglish={titles[i]}
+            />
+          ))}
+        </div>
       )}
     </main>
   );

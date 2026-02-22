@@ -25,8 +25,3 @@ export interface ProcessedArticle {
   processedAt: string;
   articleId: string;
 }
-
-export interface CacheEntry {
-  article: ProcessedArticle;
-  cachedAt: string;
-}

@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import type { ProcessedArticle, CacheEntry } from './types';
+import type { ProcessedArticle } from './types';
 import { hashArticleUrl } from './hash';
 
 // ── Storage backend ──────────────────────────────────────────────────────────
@@ -11,6 +11,7 @@ import { hashArticleUrl } from './hash';
 // ─────────────────────────────────────────────────────────────────────────────
 
 const useBlob = !!process.env.BLOB_READ_WRITE_TOKEN;
+const CACHE_DIR = path.join(process.cwd(), 'cache', 'articles');
 
 // ── Vercel Blob helpers ────────────────────────────────────────────────────
 
@@ -35,23 +36,19 @@ async function blobSet(key: string, article: ProcessedArticle): Promise<void> {
 // ── Filesystem helpers (local dev) ───────────────────────────────────────────
 
 function fsGet(key: string): ProcessedArticle | null {
-  const CACHE_DIR = path.join(process.cwd(), 'cache', 'articles');
   const filePath = path.join(CACHE_DIR, `${key}.json`);
   try {
     const raw = fs.readFileSync(filePath, 'utf-8');
-    const entry: CacheEntry = JSON.parse(raw);
-    return entry.article;
+    return JSON.parse(raw) as ProcessedArticle;
   } catch {
     return null;
   }
 }
 
 function fsSet(key: string, article: ProcessedArticle): void {
-  const CACHE_DIR = path.join(process.cwd(), 'cache', 'articles');
   if (!fs.existsSync(CACHE_DIR)) fs.mkdirSync(CACHE_DIR, { recursive: true });
   const filePath = path.join(CACHE_DIR, `${key}.json`);
-  const entry: CacheEntry = { article, cachedAt: new Date().toISOString() };
-  fs.writeFileSync(filePath, JSON.stringify(entry, null, 2), 'utf-8');
+  fs.writeFileSync(filePath, JSON.stringify(article, null, 2), 'utf-8');
 }
 
 // ── Public API ───────────────────────────────────────────────────────────────
@@ -86,7 +83,6 @@ export async function deleteStaleArticles(currentUrls: string[]): Promise<number
   }
 
   // Local dev: clean up filesystem cache
-  const CACHE_DIR = path.join(process.cwd(), 'cache', 'articles');
   try {
     const files = fs.readdirSync(CACHE_DIR);
     let deleted = 0;

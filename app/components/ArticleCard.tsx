@@ -1,39 +1,20 @@
-'use client';
-
-import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import type { NewsArticle } from '@/lib/types';
 
 interface ArticleCardProps {
   article: NewsArticle;
+  titleEnglish?: string | null;
 }
 
-export function ArticleCard({ article }: ArticleCardProps) {
+export function ArticleCard({ article, titleEnglish }: ArticleCardProps) {
   const href = `/article/${encodeURIComponent(article.article_id)}`;
-  const [titleEnglish, setTitleEnglish] = useState<string | null>(null);
 
   const formattedDate = new Date(article.pubDate).toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
   });
-
-  useEffect(() => {
-    // Check cache immediately (instant if already processed)
-    fetch(`/api/article-title?url=${encodeURIComponent(article.link)}`)
-      .then((r) => r.json())
-      .then((data) => { if (data.titleEnglish) setTitleEnglish(data.titleEnglish); })
-      .catch(() => {});
-
-    // Also listen for PrefetchArticles to finish processing this article
-    const handler = (e: Event) => {
-      const { url, titleEnglish: t } = (e as CustomEvent<{ url: string; titleEnglish: string }>).detail;
-      if (url === article.link && t) setTitleEnglish(t);
-    };
-    window.addEventListener('title-translated', handler);
-    return () => window.removeEventListener('title-translated', handler);
-  }, [article.link]);
 
   return (
     <Link
@@ -69,7 +50,7 @@ export function ArticleCard({ article }: ArticleCardProps) {
           {article.title}
         </h2>
 
-        {/* English title translation (available after first prefetch) */}
+        {/* English title translation */}
         {titleEnglish && (
           <p className="text-gray-400 text-xs leading-snug mb-3 line-clamp-2">
             {titleEnglish}

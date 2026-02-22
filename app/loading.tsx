@@ -20,8 +20,7 @@ export default function Loading() {
               <div className="h-4 bg-gray-200 rounded w-full" />
               <div className="h-4 bg-gray-200 rounded w-4/5" />
               <div className="h-4 bg-gray-100 rounded w-3/5" />
-              <div className="flex justify-between pt-3 border-t border-gray-50">
-                <div className="h-3 bg-gray-100 rounded w-20" />
+              <div className="flex justify-end pt-3 border-t border-gray-50">
                 <div className="h-3 bg-gray-100 rounded w-16" />
               </div>
             </div>
