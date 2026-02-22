@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCachedArticle, setCachedArticle } from '@/lib/article-cache';
 import { processArticle } from '@/lib/gemini';
-import { scrapeArticleText } from '@/lib/scraper';
 
 // Allow up to 60 seconds for scraping + AI processing
 export const maxDuration = 60;
@@ -30,7 +29,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(cached);
     }
 
-    // Try to scrape the full article; fall back to the description if scraping fails
+    // Lazy-import scraper to avoid loading jsdom at module init (ESM compat on Vercel)
+    const { scrapeArticleText } = await import('@/lib/scraper');
     const scraped = await scrapeArticleText(articleUrl);
     const textToProcess = scraped || articleText;
     const titleToProcess = articleTitle || '';

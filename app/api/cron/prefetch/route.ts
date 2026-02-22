@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { fetchNews } from '@/lib/news';
 import { processArticle } from '@/lib/gemini';
-import { scrapeArticleText } from '@/lib/scraper';
 import { getCachedArticle, setCachedArticle, deleteStaleArticles } from '@/lib/article-cache';
 
 // Allow up to 60 seconds — processes all articles concurrently
@@ -22,6 +21,7 @@ export async function GET(request: NextRequest) {
       const cached = await getCachedArticle(article.link);
       if (cached?.titleEnglish) return 'skipped';
 
+      const { scrapeArticleText } = await import('@/lib/scraper');
       const scraped = await scrapeArticleText(article.link);
       const text = scraped || article.description || article.title;
       const title = article.title;
