@@ -14,7 +14,8 @@ export async function scrapeArticleText(url: string): Promise<string | null> {
 
     if (!res.ok) return null;
 
-    const html = await res.text();
+    // Strip <style> tags — jsdom's CSS parser chokes on 8world's nested selectors
+    const html = (await res.text()).replace(/<style[\s\S]*?<\/style>/gi, '');
     const dom = new JSDOM(html, { url });
     const reader = new Readability(dom.window.document);
     const article = reader.parse();
