@@ -4,25 +4,32 @@ import type { ProcessedArticle, CacheEntry } from './types';
 import { hashArticleUrl } from './hash';
 
 // ── Storage backend ──────────────────────────────────────────────────────────
-// Production (Vercel): uses Vercel KV (Redis). KV_REST_API_URL is auto-set
-// when you add a KV store to your Vercel project.
+// Production (Vercel): uses Vercel Blob. BLOB_READ_WRITE_TOKEN is auto-set
+// when you add a Blob store to your Vercel project.
 //
 // Local dev: falls back to the local filesystem at cache/articles/.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const useKV = !!process.env.KV_REST_API_URL;
+const useBlob = !!process.env.BLOB_READ_WRITE_TOKEN;
 
-// ── Vercel KV helpers ────────────────────────────────────────────────────────
+// ── Vercel Blob helpers ────────────────────────────────────────────────────
 
-async function kvGet(key: string): Promise<ProcessedArticle | null> {
-  const { kv } = await import('@vercel/kv');
-  return kv.get<ProcessedArticle>(key);
+async function blobGet(key: string): Promise<ProcessedArticle | null> {
+  const { list } = await import('@vercel/blob');
+  const { blobs } = await list({ prefix: `articles/${key}.json`, limit: 1 });
+  if (blobs.length === 0) return null;
+  const res = await fetch(blobs[0].url);
+  if (!res.ok) return null;
+  return res.json() as Promise<ProcessedArticle>;
 }
 
-async function kvSet(key: string, article: ProcessedArticle): Promise<void> {
-  const { kv } = await import('@vercel/kv');
-  // TTL: 8 days so stale articles are automatically evicted
-  await kv.set(key, article, { ex: 8 * 24 * 60 * 60 });
+async function blobSet(key: string, article: ProcessedArticle): Promise<void> {
+  const { put } = await import('@vercel/blob');
+  await put(`articles/${key}.json`, JSON.stringify(article), {
+    access: 'public',
+    addRandomSuffix: false,
+    contentType: 'application/json',
+  });
 }
 
 // ── Filesystem helpers (local dev) ───────────────────────────────────────────
@@ -51,7 +58,7 @@ function fsSet(key: string, article: ProcessedArticle): void {
 
 export async function getCachedArticle(articleUrl: string): Promise<ProcessedArticle | null> {
   const key = hashArticleUrl(articleUrl);
-  if (useKV) return kvGet(key);
+  if (useBlob) return blobGet(key);
   return fsGet(key);
 }
 
@@ -60,6 +67,6 @@ export async function setCachedArticle(
   article: ProcessedArticle
 ): Promise<void> {
   const key = hashArticleUrl(articleUrl);
-  if (useKV) return kvSet(key, article);
+  if (useBlob) return blobSet(key, article);
   fsSet(key, article);
 }
