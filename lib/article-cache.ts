@@ -70,3 +70,34 @@ export async function setCachedArticle(
   if (useBlob) return blobSet(key, article);
   fsSet(key, article);
 }
+
+/** Delete cached articles whose keys are not in the given set of current URLs. */
+export async function deleteStaleArticles(currentUrls: string[]): Promise<number> {
+  const keepKeys = new Set(currentUrls.map((url) => `articles/${hashArticleUrl(url)}.json`));
+
+  if (useBlob) {
+    const { list, del } = await import('@vercel/blob');
+    const { blobs } = await list({ prefix: 'articles/', limit: 500 });
+    const stale = blobs.filter((b) => !keepKeys.has(b.pathname));
+    if (stale.length > 0) {
+      await del(stale.map((b) => b.url));
+    }
+    return stale.length;
+  }
+
+  // Local dev: clean up filesystem cache
+  const CACHE_DIR = path.join(process.cwd(), 'cache', 'articles');
+  try {
+    const files = fs.readdirSync(CACHE_DIR);
+    let deleted = 0;
+    for (const file of files) {
+      if (!keepKeys.has(`articles/${file}`)) {
+        fs.unlinkSync(path.join(CACHE_DIR, file));
+        deleted++;
+      }
+    }
+    return deleted;
+  } catch {
+    return 0;
+  }
+}

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { fetchNews } from '@/lib/news';
 import { processArticle } from '@/lib/gemini';
 import { scrapeArticleText } from '@/lib/scraper';
-import { getCachedArticle, setCachedArticle } from '@/lib/article-cache';
+import { getCachedArticle, setCachedArticle, deleteStaleArticles } from '@/lib/article-cache';
 
 // Allow up to 60 seconds — processes all articles concurrently
 export const maxDuration = 60;
@@ -36,5 +36,8 @@ export async function GET(request: NextRequest) {
   const skipped = results.filter((r) => r.status === 'fulfilled' && r.value === 'skipped').length;
   const failed = results.filter((r) => r.status === 'rejected').length;
 
-  return NextResponse.json({ processed, skipped, failed, total: articles.length });
+  // Remove cached articles that are no longer in the RSS feed
+  const deleted = await deleteStaleArticles(articles.map((a) => a.link));
+
+  return NextResponse.json({ processed, skipped, failed, deleted, total: articles.length });
 }
