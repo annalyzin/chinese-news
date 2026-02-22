@@ -6,6 +6,7 @@ const nextConfig = {
       { protocol: 'https', hostname: '*.mediacorp.sg' },
     ],
   },
+  serverExternalPackages: ['jsdom'],
 };
 
 export default nextConfig;
