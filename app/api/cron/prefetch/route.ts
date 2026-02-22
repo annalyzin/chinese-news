@@ -5,8 +5,8 @@ import { processArticle, shouldReprocess } from '@/lib/gemini';
 import { scrapeArticleText } from '@/lib/scraper';
 import { getCachedArticle, setCachedArticle, deleteStaleArticles } from '@/lib/article-cache';
 
-// Allow up to 60 seconds — processes all articles concurrently
-export const maxDuration = 60;
+// Allow up to 300 seconds — articles are processed sequentially to stay within API rate limits
+export const maxDuration = 300;
 
 export async function GET(request: NextRequest) {
   // Verify the request is from Vercel Cron (CRON_SECRET is auto-set by Vercel)
@@ -17,25 +17,29 @@ export async function GET(request: NextRequest) {
 
   const articles = await fetchNews();
 
-  // Process all articles concurrently; skip ones already cached with English title
-  const results = await Promise.allSettled(
-    articles.map(async (article) => {
+  // Process articles sequentially to avoid Gemini API rate limits
+  let processed = 0;
+  let skipped = 0;
+  let failed = 0;
+
+  for (const article of articles) {
+    try {
       const cached = await getCachedArticle(article.link);
-      if (cached && !shouldReprocess(cached)) return 'skipped';
+      if (cached && !shouldReprocess(cached)) {
+        skipped++;
+        continue;
+      }
 
       const scraped = await scrapeArticleText(article.link);
       const text = scraped || article.description || article.title;
-      const title = article.title;
 
-      const processed = await processArticle(text, title, article.article_id);
-      await setCachedArticle(article.link, processed);
-      return 'processed';
-    })
-  );
-
-  const processed = results.filter((r) => r.status === 'fulfilled' && r.value === 'processed').length;
-  const skipped = results.filter((r) => r.status === 'fulfilled' && r.value === 'skipped').length;
-  const failed = results.filter((r) => r.status === 'rejected').length;
+      const result = await processArticle(text, article.title, article.article_id);
+      await setCachedArticle(article.link, result);
+      processed++;
+    } catch {
+      failed++;
+    }
+  }
 
   // Remove cached articles that are no longer in the RSS feed
   const deleted = await deleteStaleArticles(articles.map((a) => a.link));
