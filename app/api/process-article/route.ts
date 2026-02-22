@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCachedArticle, setCachedArticle } from '@/lib/article-cache';
-import { processArticle } from '@/lib/gemini';
+import { processArticle, shouldReprocess } from '@/lib/gemini';
 import { scrapeArticleText } from '@/lib/scraper';
 
 // Allow up to 60 seconds for scraping + AI processing
 export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
-  console.log('[process-article] GOOGLE_API_KEY set:', !!process.env.GOOGLE_API_KEY);
   try {
     const body = await request.json();
     const { articleId, articleUrl, articleText, articleTitle } = body as {
@@ -24,11 +23,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Return cached result if it has a real translation (instant)
-    // Skip mock entries when Gemini is available so they get re-processed
+    // Return cached result unless it needs re-processing (mock → Gemini)
     const cached = await getCachedArticle(articleUrl);
-    const isMock = cached?.titleEnglish === '[mock translation]';
-    if (cached?.titleEnglish && !(isMock && process.env.GOOGLE_API_KEY)) {
+    if (cached && !shouldReprocess(cached)) {
       return NextResponse.json(cached);
     }
 
@@ -37,7 +34,6 @@ export async function POST(request: NextRequest) {
     const titleToProcess = articleTitle || '';
 
     const processed = await processArticle(textToProcess, titleToProcess, articleId);
-    console.log('[process-article] titleEnglish:', processed.titleEnglish);
 
     // Persist to cache for future visits
     await setCachedArticle(articleUrl, processed);

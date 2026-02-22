@@ -6,6 +6,14 @@ const FORCE_MOCK = false;
 
 const useGemini = !FORCE_MOCK && !!process.env.GOOGLE_API_KEY;
 
+export const MOCK_TRANSLATION = '[mock translation]';
+
+/** Returns true if the cached article should be re-processed (mock data + Gemini available). */
+export function shouldReprocess(cached: ProcessedArticle | null): boolean {
+  if (!cached?.titleEnglish) return true;
+  return cached.titleEnglish === MOCK_TRANSLATION && useGemini;
+}
+
 // ── Gemini implementation ───────────────────────────────────────────
 
 const MAX_CHARS = 400;
@@ -139,19 +147,19 @@ function mockProcess(
 
   const bodySentences = sentences.map((s) => ({
     tokens: mockTokenize(s.trim()),
-    english: '[mock translation]',
+    english: MOCK_TRANSLATION,
   }));
 
   const titleTokens = mockTokenize(articleTitle);
   const titleSentence: ProcessedSentence = {
     tokens: titleTokens,
-    english: '[mock translation]',
+    english: MOCK_TRANSLATION,
   };
 
   return {
     sentences: bodySentences,
     titleSentence,
-    titleEnglish: '[mock translation]',
+    titleEnglish: MOCK_TRANSLATION,
     processedAt: new Date().toISOString(),
     articleId,
   };
