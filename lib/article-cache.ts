@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import type { ProcessedArticle, CacheEntry } from './types';
 import { hashArticleUrl } from './hash';
 
@@ -26,8 +28,6 @@ async function kvSet(key: string, article: ProcessedArticle): Promise<void> {
 // ── Filesystem helpers (local dev) ───────────────────────────────────────────
 
 function fsGet(key: string): ProcessedArticle | null {
-  const fs = require('node:fs') as typeof import('node:fs');
-  const path = require('node:path') as typeof import('node:path');
   const CACHE_DIR = path.join(process.cwd(), 'cache', 'articles');
   const filePath = path.join(CACHE_DIR, `${key}.json`);
   try {
@@ -40,8 +40,6 @@ function fsGet(key: string): ProcessedArticle | null {
 }
 
 function fsSet(key: string, article: ProcessedArticle): void {
-  const fs = require('node:fs') as typeof import('node:fs');
-  const path = require('node:path') as typeof import('node:path');
   const CACHE_DIR = path.join(process.cwd(), 'cache', 'articles');
   if (!fs.existsSync(CACHE_DIR)) fs.mkdirSync(CACHE_DIR, { recursive: true });
   const filePath = path.join(CACHE_DIR, `${key}.json`);
