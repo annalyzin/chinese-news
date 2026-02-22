@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCachedArticle, setCachedArticle } from '@/lib/article-cache';
 import { processArticle } from '@/lib/gemini';
 import { scrapeArticleText } from '@/lib/scraper';
-import { tw2s } from '@/lib/tw2s';
 
 // Allow up to 60 seconds for scraping + AI processing
 export const maxDuration = 60;
@@ -33,8 +32,8 @@ export async function POST(request: NextRequest) {
 
     // Try to scrape the full article; fall back to the description if scraping fails
     const scraped = await scrapeArticleText(articleUrl);
-    const textToProcess = tw2s(scraped || articleText);
-    const titleToProcess = tw2s(articleTitle || '');
+    const textToProcess = scraped || articleText;
+    const titleToProcess = articleTitle || '';
 
     const processed = await processArticle(textToProcess, titleToProcess, articleId);
 

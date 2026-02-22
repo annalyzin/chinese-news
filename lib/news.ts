@@ -1,6 +1,5 @@
 import Parser from 'rss-parser';
 import type { NewsArticle } from './types';
-import { tw2s } from './tw2s';
 
 // 8world (Mediacorp) Singapore local news — category 176 = 新加坡
 const FEED_URL =
@@ -34,9 +33,9 @@ export async function fetchNews(): Promise<NewsArticle[]> {
 
       return {
         article_id: id,
-        title: tw2s(item.title ?? ''),
+        title: item.title ?? '',
         link: item.link ?? '',
-        description: item.contentSnippet ? tw2s(item.contentSnippet) : null,
+        description: item.contentSnippet ?? null,
         content: null, // full content scraped on demand
         pubDate: item.pubDate ?? new Date().toISOString(),
         source_id: '8world',

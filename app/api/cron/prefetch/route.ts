@@ -3,7 +3,6 @@ import { fetchNews } from '@/lib/news';
 import { processArticle } from '@/lib/gemini';
 import { scrapeArticleText } from '@/lib/scraper';
 import { getCachedArticle, setCachedArticle } from '@/lib/article-cache';
-import { tw2s } from '@/lib/tw2s';
 
 // Allow up to 60 seconds — processes all articles concurrently
 export const maxDuration = 60;
@@ -24,8 +23,8 @@ export async function GET(request: NextRequest) {
       if (cached?.titleEnglish) return 'skipped';
 
       const scraped = await scrapeArticleText(article.link);
-      const text = tw2s(scraped || article.description || article.title);
-      const title = tw2s(article.title);
+      const text = scraped || article.description || article.title;
+      const title = article.title;
 
       const processed = await processArticle(text, title, article.article_id);
       await setCachedArticle(article.link, processed);
