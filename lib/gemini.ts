@@ -1,8 +1,10 @@
 import type { ProcessedArticle, ProcessedSentence, Token } from './types';
 
-// ── Switch: set GOOGLE_API_KEY to use Gemini, leave unset for mock ──
+// ── Toggle: uncomment the next line to force mock mode ──
+// const FORCE_MOCK = true;
+const FORCE_MOCK = false;
 
-const useGemini = !!process.env.GOOGLE_API_KEY;
+const useGemini = !FORCE_MOCK && !!process.env.GOOGLE_API_KEY;
 
 // ── Gemini implementation ───────────────────────────────────────────
 
