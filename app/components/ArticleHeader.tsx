@@ -45,7 +45,7 @@ export function ArticleHeader({ article, titleSentence, titleEnglish }: ArticleH
         <span className="text-xs text-gray-400">{formattedDate}</span>
       </div>
 
-      {/* Title — pinyin version once processed, plain text while loading */}
+      {/* Title — pinyin version if processed, plain text otherwise */}
       {titleSentence ? (
         <p className="chinese-sentence font-noto font-bold text-gray-900 mb-2"
            style={{ fontSize: '1.5rem', lineHeight: 3.2 }}>

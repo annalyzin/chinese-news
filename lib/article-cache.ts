@@ -1,7 +1,11 @@
+import { createHash } from 'crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { ProcessedArticle } from './types';
-import { hashArticleUrl } from './hash';
+
+function hashArticleUrl(url: string): string {
+  return createHash('sha256').update(url).digest('hex').slice(0, 32);
+}
 
 // ── Storage backend ──────────────────────────────────────────────────────────
 // Production (Vercel): uses Vercel Blob. BLOB_READ_WRITE_TOKEN is auto-set

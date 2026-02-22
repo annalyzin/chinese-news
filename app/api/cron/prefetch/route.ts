@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import { fetchNews } from '@/lib/news';
 import { processArticle, shouldReprocess } from '@/lib/gemini';
 import { scrapeArticleText } from '@/lib/scraper';
@@ -38,6 +39,9 @@ export async function GET(request: NextRequest) {
 
   // Remove cached articles that are no longer in the RSS feed
   const deleted = await deleteStaleArticles(articles.map((a) => a.link));
+
+  // Bust the ISR cache so the home page picks up new translations
+  revalidatePath('/');
 
   return NextResponse.json({ processed, skipped, failed, deleted, total: articles.length });
 }
