@@ -5,8 +5,8 @@ import { processArticle, shouldReprocess } from '@/lib/gemini';
 import { scrapeArticleText } from '@/lib/scraper';
 import { getCachedArticle, setCachedArticle, deleteStaleArticles } from '@/lib/article-cache';
 
-// Allow up to 300 seconds — articles are processed sequentially to stay within API rate limits
-export const maxDuration = 300;
+// Allow up to 120 seconds — one Gemini call per article, processed sequentially
+export const maxDuration = 120;
 
 export async function GET(request: NextRequest) {
   // Verify the request is from Vercel Cron (CRON_SECRET is auto-set by Vercel)

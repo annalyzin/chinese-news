@@ -16,35 +16,13 @@ export function shouldReprocess(cached: ProcessedArticle | null): boolean {
 
 // ── Gemini implementation ───────────────────────────────────────────
 
-const MAX_CHARS = 400;
-
-function chunkText(text: string): string[] {
-  const sentences = text.split(/(?<=[。！？…])/g).filter(Boolean);
-  const chunks: string[] = [];
-  let current = '';
-
-  for (const sentence of sentences) {
-    if ((current + sentence).length > MAX_CHARS && current.length > 0) {
-      chunks.push(current.trim());
-      current = sentence;
-    } else {
-      current += sentence;
-    }
-  }
-
-  if (current.trim()) {
-    chunks.push(current.trim());
-  }
-
-  return chunks.length > 0 ? chunks : [text];
-}
-
-function buildPrompt(chineseText: string): string {
-  return `You are a Chinese language teaching assistant. Analyze the following Chinese text and return a JSON object.
+function buildArticlePrompt(title: string, body: string): string {
+  return `You are a Chinese language teaching assistant. Analyze the following Chinese news article and return a JSON object.
 
 INSTRUCTIONS:
-- Split the text into individual sentences (split on 。！？ punctuation).
-- For each sentence, produce a list of word-level tokens.
+- The first line (TITLE) is the article headline. Process it as a single sentence.
+- The remaining text (BODY) is the article content. Split it into individual sentences (split on 。！？ punctuation).
+- For each sentence (title and body), produce a list of word-level tokens.
 - Each token has:
   - "text": the Chinese word or punctuation mark.
   - "pinyin": the pinyin with tone marks for Chinese words (e.g. "Xí Jìn Píng"), or null for punctuation marks and non-Chinese text (numbers, English words, symbols).
@@ -55,20 +33,31 @@ INSTRUCTIONS:
 
 Return ONLY valid JSON matching this exact schema, with no extra text:
 {
+  "titleSentence": {
+    "tokens": [
+      {"text": "习近平", "pinyin": "Xí Jìn Píng"},
+      {"text": "访问", "pinyin": "fǎngwèn"},
+      {"text": "中国", "pinyin": "Zhōngguó"}
+    ],
+    "english": "Xi Jinping visits China"
+  },
   "sentences": [
     {
       "tokens": [
-        {"text": "习近平", "pinyin": "Xí Jìn Píng"},
-        {"text": "，", "pinyin": null},
-        {"text": "中国", "pinyin": "Zhōngguó"}
+        {"text": "中国", "pinyin": "Zhōngguó"},
+        {"text": "表示", "pinyin": "biǎoshì"},
+        {"text": "。", "pinyin": null}
       ],
-      "english": "Xi Jinping, China..."
+      "english": "China stated..."
     }
   ]
 }
 
-Chinese text to process:
-${chineseText}`;
+TITLE:
+${title}
+
+BODY:
+${body}`;
 }
 
 let cachedModel: import('@google/generative-ai').GenerativeModel | null = null;
@@ -82,10 +71,13 @@ async function getModel() {
   return cachedModel;
 }
 
-async function geminiProcessChunk(text: string): Promise<ProcessedSentence[]> {
+async function geminiProcess(
+  articleText: string,
+  articleTitle: string,
+  articleId: string
+): Promise<ProcessedArticle> {
   const model = await getModel();
-
-  const result = await model.generateContent(buildPrompt(text));
+  const result = await model.generateContent(buildArticlePrompt(articleTitle, articleText));
   const raw = result.response.text();
 
   const jsonText = raw
@@ -94,28 +86,15 @@ async function geminiProcessChunk(text: string): Promise<ProcessedSentence[]> {
     .replace(/\s*```$/i, '')
     .trim();
 
-  const parsed = JSON.parse(jsonText) as { sentences: ProcessedSentence[] };
-  return parsed.sentences;
-}
-
-async function geminiProcess(
-  articleText: string,
-  articleTitle: string,
-  articleId: string
-): Promise<ProcessedArticle> {
-  const [titleSentences, ...bodyChunkResults] = await Promise.all([
-    geminiProcessChunk(articleTitle),
-    ...chunkText(articleText).map((chunk) => geminiProcessChunk(chunk)),
-  ]);
-
-  const titleSentence = titleSentences[0];
-  const titleEnglish = titleSentence?.english ?? '';
-  const allSentences: ProcessedSentence[] = bodyChunkResults.flat();
+  const parsed = JSON.parse(jsonText) as {
+    titleSentence: ProcessedSentence;
+    sentences: ProcessedSentence[];
+  };
 
   return {
-    sentences: allSentences,
-    titleSentence,
-    titleEnglish,
+    sentences: parsed.sentences,
+    titleSentence: parsed.titleSentence,
+    titleEnglish: parsed.titleSentence?.english ?? '',
     processedAt: new Date().toISOString(),
     articleId,
   };
