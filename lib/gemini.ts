@@ -64,15 +64,14 @@ BODY:
 ${trimmedBody}`;
 }
 
-let cachedModel: import('@google/generative-ai').GenerativeModel | null = null;
+let cachedClient: import('@google/genai').GoogleGenAI | null = null;
 
-async function getModel() {
-  if (!cachedModel) {
-    const { GoogleGenerativeAI } = await import('@google/generative-ai');
-    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
-    cachedModel = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+function getClient() {
+  if (!cachedClient) {
+    const { GoogleGenAI } = require('@google/genai') as typeof import('@google/genai');
+    cachedClient = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY! });
   }
-  return cachedModel;
+  return cachedClient;
 }
 
 async function geminiProcess(
@@ -80,9 +79,15 @@ async function geminiProcess(
   articleTitle: string,
   articleId: string
 ): Promise<ProcessedArticle> {
-  const model = await getModel();
-  const result = await model.generateContent(buildArticlePrompt(articleTitle, articleText));
-  const raw = result.response.text();
+  const client = getClient();
+  const result = await client.models.generateContent({
+    model: 'gemini-2.5-flash',
+    contents: buildArticlePrompt(articleTitle, articleText),
+    config: {
+      thinkingConfig: { thinkingBudget: 0 },
+    },
+  });
+  const raw = result.text ?? '';
 
   // Extract JSON object robustly — find the outermost { ... }
   const start = raw.indexOf('{');
