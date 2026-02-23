@@ -1,28 +1,26 @@
 import type { ProcessedArticle, ProcessedSentence, Token } from './types';
 
-// ── Toggle: uncomment the next line to force mock mode ──
-// const FORCE_MOCK = true;
-const FORCE_MOCK = false;
+// ── Configuration ────────────────────────────────────────────────────────────
 
-const useGemini = !FORCE_MOCK && !!process.env.GOOGLE_API_KEY;
+const FORCE_MOCK = false;
+const useLLM = !FORCE_MOCK && !!process.env.GROQ_API_KEY;
 
 export const MOCK_TRANSLATION = '[mock translation]';
 
-/** Returns true if the cached article should be re-processed (mock data + Gemini available). */
-export function shouldReprocess(cached: ProcessedArticle | null): boolean {
-  if (!cached) return true;
-  // Only reprocess mock translations when Gemini is available.
-  // Never reprocess articles that have real (non-mock) data, even if titleEnglish is empty.
-  if (!cached.processedAt) return true;
-  return cached.titleEnglish === MOCK_TRANSLATION && useGemini;
-}
-
-// ── Gemini implementation ───────────────────────────────────────────
-
-// Cap body text to avoid excessively large Gemini responses
+const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
+const GROQ_MODEL = 'llama-3.3-70b-versatile';
 const MAX_BODY_CHARS = 2000;
 
-function buildArticlePrompt(title: string, body: string): string {
+/** Returns true if the cached article should be re-processed. */
+export function shouldReprocess(cached: ProcessedArticle | null): boolean {
+  if (!cached) return true;
+  if (!cached.processedAt) return true;
+  return cached.titleEnglish === MOCK_TRANSLATION && useLLM;
+}
+
+// ── Groq / LLM implementation ───────────────────────────────────────────────
+
+function buildPrompt(title: string, body: string): string {
   const trimmedBody = body.slice(0, MAX_BODY_CHARS);
   return `You are a Chinese language teaching assistant. Analyze the following Chinese news article and return a JSON object.
 
@@ -38,7 +36,7 @@ INSTRUCTIONS:
 - Use proper tone marks (ā á ǎ à, ē é ě è, etc.) not tone numbers.
 - For non-Chinese tokens (English words, numbers, symbols like $, %), set "pinyin" to null.
 
-Return ONLY valid JSON matching this exact schema, with no extra text:
+Return ONLY valid JSON matching this exact schema:
 {
   "titleSentence": {
     "tokens": [
@@ -67,34 +65,36 @@ BODY:
 ${trimmedBody}`;
 }
 
-let cachedClient: import('@google/genai').GoogleGenAI | null = null;
-
-async function getClient() {
-  if (!cachedClient) {
-    const { GoogleGenAI } = await import('@google/genai');
-    cachedClient = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY! });
-  }
-  return cachedClient;
-}
-
-async function geminiProcess(
+async function llmProcess(
   articleText: string,
   articleTitle: string,
   articleId: string
 ): Promise<ProcessedArticle> {
-  const client = await getClient();
-  const result = await client.models.generateContent({
-    model: 'gemini-2.5-flash',
-    contents: buildArticlePrompt(articleTitle, articleText),
-    config: {
-      thinkingConfig: { thinkingBudget: 0 },
-      responseMimeType: 'application/json',
+  const res = await fetch(GROQ_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
     },
+    body: JSON.stringify({
+      model: GROQ_MODEL,
+      messages: [{ role: 'user', content: buildPrompt(articleTitle, articleText) }],
+      response_format: { type: 'json_object' },
+      temperature: 0.3,
+    }),
   });
-  const raw = result.text ?? '';
-  if (!raw) {
-    throw new Error('Empty response from Gemini');
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Groq ${res.status}: ${body}`);
   }
+
+  const data = (await res.json()) as {
+    choices: { message: { content: string } }[];
+  };
+
+  const raw = data.choices[0]?.message?.content;
+  if (!raw) throw new Error('Empty response from Groq');
 
   const parsed = JSON.parse(raw) as {
     titleSentence: ProcessedSentence;
@@ -110,7 +110,7 @@ async function geminiProcess(
   };
 }
 
-// ── Mock implementation ─────────────────────────────────────────────
+// ── Mock implementation ─────────────────────────────────────────────────────
 
 const PUNCT =
   '\u3000-\u303F' +
@@ -163,15 +163,15 @@ function mockProcess(
   };
 }
 
-// ── Public API ──────────────────────────────────────────────────────
+// ── Public API ──────────────────────────────────────────────────────────────
 
 export async function processArticle(
   articleText: string,
   articleTitle: string,
   articleId: string
 ): Promise<ProcessedArticle> {
-  if (useGemini) {
-    return geminiProcess(articleText, articleTitle, articleId);
+  if (useLLM) {
+    return llmProcess(articleText, articleTitle, articleId);
   }
   return mockProcess(articleText, articleTitle, articleId);
 }

@@ -1,15 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { revalidatePath } from 'next/cache';
 import { fetchNews } from '@/lib/news';
-import { processArticle, shouldReprocess } from '@/lib/gemini';
+import { processArticle, shouldReprocess } from '@/lib/llm';
 import { scrapeArticleText } from '@/lib/scraper';
 import { loadCache, saveCache } from '@/lib/article-cache';
 
 // Vercel hobby plan allows up to 60s; set higher so Pro plan can benefit
 export const maxDuration = 120;
-
-// Process Gemini calls in batches to respect RPM limits
-const GEMINI_BATCH_SIZE = 5;
 
 export async function GET(request: NextRequest) {
   const auth = request.headers.get('authorization');
@@ -35,36 +32,25 @@ export async function GET(request: NextRequest) {
     })
   );
 
-  // 4. Process Gemini calls in batches
+  // 4. Process all LLM calls in parallel (Groq allows 30 RPM / 14,400 RPD)
   let processed = 0;
   let failed = 0;
   const errors: string[] = [];
 
-  for (let i = 0; i < toProcess.length; i += GEMINI_BATCH_SIZE) {
-    const batch = toProcess.slice(i, i + GEMINI_BATCH_SIZE);
-    const batchText = scraped.slice(i, i + GEMINI_BATCH_SIZE);
+  const results = await Promise.allSettled(
+    toProcess.map((a, i) => processArticle(scraped[i], a.title, a.article_id))
+  );
 
-    const results = await Promise.allSettled(
-      batch.map((a, j) => processArticle(batchText[j], a.title, a.article_id))
-    );
-
-    let rateLimited = false;
-    for (let j = 0; j < results.length; j++) {
-      const r = results[j];
-      if (r.status === 'fulfilled') {
-        cache[batch[j].link] = r.value;
-        processed++;
-      } else {
-        const msg = r.reason instanceof Error ? r.reason.message : String(r.reason);
-        failed++;
-        errors.push(`${batch[j].title}: ${msg}`);
-        if (msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('quota')) {
-          rateLimited = true;
-        }
-      }
+  for (let i = 0; i < results.length; i++) {
+    const r = results[i];
+    if (r.status === 'fulfilled') {
+      cache[toProcess[i].link] = r.value;
+      processed++;
+    } else {
+      const msg = r.reason instanceof Error ? r.reason.message : String(r.reason);
+      failed++;
+      errors.push(`${toProcess[i].title}: ${msg}`);
     }
-
-    if (rateLimited) break;
   }
 
   // 5. Remove stale articles no longer in the RSS feed
