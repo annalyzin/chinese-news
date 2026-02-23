@@ -66,9 +66,9 @@ ${trimmedBody}`;
 
 let cachedClient: import('@google/genai').GoogleGenAI | null = null;
 
-function getClient() {
+async function getClient() {
   if (!cachedClient) {
-    const { GoogleGenAI } = require('@google/genai') as typeof import('@google/genai');
+    const { GoogleGenAI } = await import('@google/genai');
     cachedClient = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY! });
   }
   return cachedClient;
@@ -79,7 +79,7 @@ async function geminiProcess(
   articleTitle: string,
   articleId: string
 ): Promise<ProcessedArticle> {
-  const client = getClient();
+  const client = await getClient();
   const result = await client.models.generateContent({
     model: 'gemini-2.5-flash',
     contents: buildArticlePrompt(articleTitle, articleText),
