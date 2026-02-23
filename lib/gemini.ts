@@ -88,19 +88,15 @@ async function geminiProcess(
     contents: buildArticlePrompt(articleTitle, articleText),
     config: {
       thinkingConfig: { thinkingBudget: 0 },
+      responseMimeType: 'application/json',
     },
   });
   const raw = result.text ?? '';
-
-  // Extract JSON object robustly — find the outermost { ... }
-  const start = raw.indexOf('{');
-  const end = raw.lastIndexOf('}');
-  if (start === -1 || end === -1) {
-    throw new Error('No JSON object found in Gemini response');
+  if (!raw) {
+    throw new Error('Empty response from Gemini');
   }
-  const jsonText = raw.slice(start, end + 1);
 
-  const parsed = JSON.parse(jsonText) as {
+  const parsed = JSON.parse(raw) as {
     titleSentence: ProcessedSentence;
     sentences: ProcessedSentence[];
   };
