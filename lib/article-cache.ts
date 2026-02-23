@@ -42,6 +42,7 @@ async function blobWriteAll(cache: ArticlesCache): Promise<void> {
   await put(BLOB_KEY, JSON.stringify(cache), {
     access: 'public',
     addRandomSuffix: false,
+    allowOverwrite: true,
     contentType: 'application/json',
   });
   memoryCache = cache;
