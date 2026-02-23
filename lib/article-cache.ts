@@ -1,103 +1,108 @@
-import { createHash } from 'crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { ProcessedArticle } from './types';
 
-function hashArticleUrl(url: string): string {
-  return createHash('sha256').update(url).digest('hex').slice(0, 32);
-}
-
 // ── Storage backend ──────────────────────────────────────────────────────────
-// Production (Vercel): uses Vercel Blob. BLOB_READ_WRITE_TOKEN is auto-set
-// when you add a Blob store to your Vercel project.
+// All articles are stored in a single JSON blob/file to minimize operations.
 //
-// Local dev: falls back to the local filesystem at cache/articles/.
+// Production (Vercel): uses Vercel Blob (one file: cache.json)
+// Local dev: falls back to the local filesystem at cache/articles.json
 // ─────────────────────────────────────────────────────────────────────────────
 
+type ArticlesCache = Record<string, ProcessedArticle>;
+
 const useBlob = !!process.env.BLOB_READ_WRITE_TOKEN;
-const CACHE_DIR = path.join(process.cwd(), 'cache', 'articles');
+const CACHE_FILE = path.join(process.cwd(), 'cache', 'articles.json');
+const BLOB_KEY = 'articles-cache.json';
+
+// ── In-memory cache (lives for the duration of a single serverless invocation)
+let memoryCache: ArticlesCache | null = null;
 
 // ── Vercel Blob helpers ────────────────────────────────────────────────────
 
-async function blobGet(key: string): Promise<ProcessedArticle | null> {
+async function blobReadAll(): Promise<ArticlesCache> {
+  if (memoryCache) return memoryCache;
   const { list } = await import('@vercel/blob');
-  const { blobs } = await list({ prefix: `articles/${key}.json`, limit: 1 });
-  if (blobs.length === 0) return null;
+  const { blobs } = await list({ prefix: BLOB_KEY, limit: 1 });
+  if (blobs.length === 0) {
+    memoryCache = {};
+    return memoryCache;
+  }
   const res = await fetch(blobs[0].url);
-  if (!res.ok) return null;
-  return res.json() as Promise<ProcessedArticle>;
+  if (!res.ok) {
+    memoryCache = {};
+    return memoryCache;
+  }
+  memoryCache = (await res.json()) as ArticlesCache;
+  return memoryCache;
 }
 
-async function blobSet(key: string, article: ProcessedArticle): Promise<void> {
+async function blobWriteAll(cache: ArticlesCache): Promise<void> {
   const { put } = await import('@vercel/blob');
-  await put(`articles/${key}.json`, JSON.stringify(article), {
+  await put(BLOB_KEY, JSON.stringify(cache), {
     access: 'public',
     addRandomSuffix: false,
     contentType: 'application/json',
   });
+  memoryCache = cache;
 }
 
 // ── Filesystem helpers (local dev) ───────────────────────────────────────────
 
-function fsGet(key: string): ProcessedArticle | null {
-  const filePath = path.join(CACHE_DIR, `${key}.json`);
+function fsReadAll(): ArticlesCache {
+  if (memoryCache) return memoryCache;
   try {
-    const raw = fs.readFileSync(filePath, 'utf-8');
-    return JSON.parse(raw) as ProcessedArticle;
+    const raw = fs.readFileSync(CACHE_FILE, 'utf-8');
+    memoryCache = JSON.parse(raw) as ArticlesCache;
+    return memoryCache;
   } catch {
-    return null;
+    memoryCache = {};
+    return memoryCache;
   }
 }
 
-function fsSet(key: string, article: ProcessedArticle): void {
-  if (!fs.existsSync(CACHE_DIR)) fs.mkdirSync(CACHE_DIR, { recursive: true });
-  const filePath = path.join(CACHE_DIR, `${key}.json`);
-  fs.writeFileSync(filePath, JSON.stringify(article, null, 2), 'utf-8');
+function fsWriteAll(cache: ArticlesCache): void {
+  const dir = path.dirname(CACHE_FILE);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(CACHE_FILE, JSON.stringify(cache, null, 2), 'utf-8');
+  memoryCache = cache;
 }
 
 // ── Public API ───────────────────────────────────────────────────────────────
 
 export async function getCachedArticle(articleUrl: string): Promise<ProcessedArticle | null> {
-  const key = hashArticleUrl(articleUrl);
-  if (useBlob) return blobGet(key);
-  return fsGet(key);
+  const cache = useBlob ? await blobReadAll() : fsReadAll();
+  return cache[articleUrl] ?? null;
 }
 
+/** Update an article in the in-memory cache. Call flushCache() to persist. */
 export async function setCachedArticle(
   articleUrl: string,
   article: ProcessedArticle
 ): Promise<void> {
-  const key = hashArticleUrl(articleUrl);
-  if (useBlob) return blobSet(key, article);
-  fsSet(key, article);
+  const cache = useBlob ? await blobReadAll() : fsReadAll();
+  cache[articleUrl] = article;
 }
 
-/** Delete cached articles whose keys are not in the given set of current URLs. */
+/** Remove cached articles whose URLs are not in the given set (in-memory only). */
 export async function deleteStaleArticles(currentUrls: string[]): Promise<number> {
-  const keepKeys = new Set(currentUrls.map((url) => `articles/${hashArticleUrl(url)}.json`));
+  const keep = new Set(currentUrls);
+  const cache = useBlob ? await blobReadAll() : fsReadAll();
+  const staleKeys = Object.keys(cache).filter((url) => !keep.has(url));
 
-  if (useBlob) {
-    const { list, del } = await import('@vercel/blob');
-    const { blobs } = await list({ prefix: 'articles/', limit: 500 });
-    const stale = blobs.filter((b) => !keepKeys.has(b.pathname));
-    if (stale.length > 0) {
-      await del(stale.map((b) => b.url));
-    }
-    return stale.length;
+  for (const key of staleKeys) {
+    delete cache[key];
   }
 
-  // Local dev: clean up filesystem cache
-  try {
-    const files = fs.readdirSync(CACHE_DIR);
-    let deleted = 0;
-    for (const file of files) {
-      if (!keepKeys.has(`articles/${file}`)) {
-        fs.unlinkSync(path.join(CACHE_DIR, file));
-        deleted++;
-      }
-    }
-    return deleted;
-  } catch {
-    return 0;
+  return staleKeys.length;
+}
+
+/** Persist the in-memory cache to blob storage / filesystem. */
+export async function flushCache(): Promise<void> {
+  if (!memoryCache) return;
+  if (useBlob) {
+    await blobWriteAll(memoryCache);
+  } else {
+    fsWriteAll(memoryCache);
   }
 }

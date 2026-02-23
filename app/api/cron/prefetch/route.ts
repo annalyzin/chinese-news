@@ -3,7 +3,7 @@ import { revalidatePath } from 'next/cache';
 import { fetchNews } from '@/lib/news';
 import { processArticle, shouldReprocess } from '@/lib/gemini';
 import { scrapeArticleText } from '@/lib/scraper';
-import { getCachedArticle, setCachedArticle, deleteStaleArticles } from '@/lib/article-cache';
+import { getCachedArticle, setCachedArticle, deleteStaleArticles, flushCache } from '@/lib/article-cache';
 
 // Allow up to 120 seconds — one Gemini call per article, processed sequentially
 export const maxDuration = 120;
@@ -45,6 +45,9 @@ export async function GET(request: NextRequest) {
 
   // Remove cached articles that are no longer in the RSS feed
   const deleted = await deleteStaleArticles(articles.map((a) => a.link));
+
+  // Write all changes to blob/fs in a single operation
+  await flushCache();
 
   // Bust the ISR cache so the home page picks up new translations
   revalidatePath('/');
