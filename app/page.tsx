@@ -1,5 +1,5 @@
 import { fetchNews } from '@/lib/news';
-import { getCachedArticle } from '@/lib/article-cache';
+import { loadCache } from '@/lib/article-cache';
 import type { NewsArticle } from '@/lib/types';
 import { ArticleCard } from './components/ArticleCard';
 
@@ -16,13 +16,9 @@ export default async function HomePage() {
     error = e instanceof Error ? e.message : 'Failed to load news';
   }
 
-  // Fetch cached English titles server-side (parallel)
-  const titles = await Promise.all(
-    articles.map(async (a) => {
-      const cached = await getCachedArticle(a.link);
-      return cached?.titleEnglish ?? null;
-    })
-  );
+  // Load cache once and extract titles
+  const cache = await loadCache();
+  const titles = articles.map((a) => cache[a.link]?.titleEnglish ?? null);
 
   return (
     <main className="max-w-6xl mx-auto px-4 sm:px-6 py-10">

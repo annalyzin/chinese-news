@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import { fetchNews } from '@/lib/news';
-import { getCachedArticle } from '@/lib/article-cache';
+import { loadCache } from '@/lib/article-cache';
 import { SentenceBlock } from '@/app/components/SentenceBlock';
 import { ArticleHeader } from '@/app/components/ArticleHeader';
 
@@ -17,7 +17,8 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
 
   if (!article) notFound();
 
-  const processed = await getCachedArticle(article.link);
+  const cache = await loadCache();
+  const processed = cache[article.link] ?? null;
 
   return (
     <main className="max-w-3xl mx-auto px-4 sm:px-6 py-10">
