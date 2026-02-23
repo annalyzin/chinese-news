@@ -16,7 +16,11 @@ export function shouldReprocess(cached: ProcessedArticle | null): boolean {
 
 // ── Gemini implementation ───────────────────────────────────────────
 
+// Cap body text to avoid excessively large Gemini responses
+const MAX_BODY_CHARS = 2000;
+
 function buildArticlePrompt(title: string, body: string): string {
+  const trimmedBody = body.slice(0, MAX_BODY_CHARS);
   return `You are a Chinese language teaching assistant. Analyze the following Chinese news article and return a JSON object.
 
 INSTRUCTIONS:
@@ -57,7 +61,7 @@ TITLE:
 ${title}
 
 BODY:
-${body}`;
+${trimmedBody}`;
 }
 
 let cachedModel: import('@google/generative-ai').GenerativeModel | null = null;
@@ -80,11 +84,13 @@ async function geminiProcess(
   const result = await model.generateContent(buildArticlePrompt(articleTitle, articleText));
   const raw = result.response.text();
 
-  const jsonText = raw
-    .replace(/^```json\s*/i, '')
-    .replace(/^```\s*/i, '')
-    .replace(/\s*```$/i, '')
-    .trim();
+  // Extract JSON object robustly — find the outermost { ... }
+  const start = raw.indexOf('{');
+  const end = raw.lastIndexOf('}');
+  if (start === -1 || end === -1) {
+    throw new Error('No JSON object found in Gemini response');
+  }
+  const jsonText = raw.slice(start, end + 1);
 
   const parsed = JSON.parse(jsonText) as {
     titleSentence: ProcessedSentence;
