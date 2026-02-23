@@ -21,6 +21,7 @@ export async function GET(request: NextRequest) {
   let processed = 0;
   let skipped = 0;
   let failed = 0;
+  const errors: string[] = [];
 
   for (const article of articles) {
     try {
@@ -36,8 +37,9 @@ export async function GET(request: NextRequest) {
       const result = await processArticle(text, article.title, article.article_id);
       await setCachedArticle(article.link, result);
       processed++;
-    } catch {
+    } catch (e) {
       failed++;
+      errors.push(`${article.title}: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 
@@ -47,5 +49,5 @@ export async function GET(request: NextRequest) {
   // Bust the ISR cache so the home page picks up new translations
   revalidatePath('/');
 
-  return NextResponse.json({ processed, skipped, failed, deleted, total: articles.length });
+  return NextResponse.json({ processed, skipped, failed, deleted, total: articles.length, errors: errors.slice(0, 5) });
 }
