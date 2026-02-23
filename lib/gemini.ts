@@ -10,7 +10,10 @@ export const MOCK_TRANSLATION = '[mock translation]';
 
 /** Returns true if the cached article should be re-processed (mock data + Gemini available). */
 export function shouldReprocess(cached: ProcessedArticle | null): boolean {
-  if (!cached?.titleEnglish) return true;
+  if (!cached) return true;
+  // Only reprocess mock translations when Gemini is available.
+  // Never reprocess articles that have real (non-mock) data, even if titleEnglish is empty.
+  if (!cached.processedAt) return true;
   return cached.titleEnglish === MOCK_TRANSLATION && useGemini;
 }
 

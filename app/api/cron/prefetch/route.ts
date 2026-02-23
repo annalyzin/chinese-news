@@ -5,8 +5,11 @@ import { processArticle, shouldReprocess } from '@/lib/gemini';
 import { scrapeArticleText } from '@/lib/scraper';
 import { getCachedArticle, setCachedArticle, deleteStaleArticles, flushCache } from '@/lib/article-cache';
 
-// Allow up to 120 seconds — one Gemini call per article, processed sequentially
+// Vercel hobby plan allows up to 60s; set higher so Pro plan can benefit
 export const maxDuration = 120;
+
+// Process Gemini calls in batches to respect RPM limits
+const GEMINI_BATCH_SIZE = 5;
 
 export async function GET(request: NextRequest) {
   // Verify the request is from Vercel Cron (CRON_SECRET is auto-set by Vercel)
@@ -17,41 +20,70 @@ export async function GET(request: NextRequest) {
 
   const articles = await fetchNews();
 
-  // Process articles sequentially to avoid Gemini API rate limits
-  let processed = 0;
+  // 1. Filter out already-cached articles
+  const toProcess: typeof articles = [];
   let skipped = 0;
-  let failed = 0;
-  const errors: string[] = [];
 
   for (const article of articles) {
-    try {
-      const cached = await getCachedArticle(article.link);
-      if (cached && !shouldReprocess(cached)) {
-        skipped++;
-        continue;
-      }
-
-      const scraped = await scrapeArticleText(article.link);
-      const text = scraped || article.description || article.title;
-
-      const result = await processArticle(text, article.title, article.article_id);
-      await setCachedArticle(article.link, result);
-      await flushCache(); // persist after each article so progress survives timeouts
-      revalidatePath('/'); // bust ISR cache so home page picks up new translations
-      processed++;
-    } catch (e) {
-      failed++;
-      errors.push(`${article.title}: ${e instanceof Error ? e.message : String(e)}`);
+    const cached = await getCachedArticle(article.link);
+    if (cached && !shouldReprocess(cached)) {
+      skipped++;
+    } else {
+      toProcess.push(article);
     }
   }
 
-  // Remove cached articles that are no longer in the RSS feed
+  // 2. Scrape all uncached articles in parallel
+  const scraped = await Promise.all(
+    toProcess.map(async (article) => {
+      try {
+        const text = await scrapeArticleText(article.link);
+        return text || article.description || article.title;
+      } catch {
+        return article.description || article.title;
+      }
+    })
+  );
+
+  // 3. Process Gemini calls in batches to respect RPM limits
+  let processed = 0;
+  let failed = 0;
+  const errors: string[] = [];
+  let rateLimited = false;
+
+  for (let i = 0; i < toProcess.length; i += GEMINI_BATCH_SIZE) {
+    if (rateLimited) break;
+
+    const batch = toProcess.slice(i, i + GEMINI_BATCH_SIZE);
+    const batchScraped = scraped.slice(i, i + GEMINI_BATCH_SIZE);
+
+    const results = await Promise.allSettled(
+      batch.map((article, j) =>
+        processArticle(batchScraped[j], article.title, article.article_id)
+      )
+    );
+
+    for (let j = 0; j < results.length; j++) {
+      const result = results[j];
+      if (result.status === 'fulfilled') {
+        await setCachedArticle(batch[j].link, result.value);
+        processed++;
+      } else {
+        const msg = result.reason instanceof Error ? result.reason.message : String(result.reason);
+        failed++;
+        errors.push(`${batch[j].title}: ${msg}`);
+
+        // Stop on rate-limit errors — remaining calls will also fail
+        if (msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('quota')) {
+          rateLimited = true;
+        }
+      }
+    }
+  }
+
+  // 4. Clean up stale articles + persist everything in one write
   const deleted = await deleteStaleArticles(articles.map((a) => a.link));
-
-  // Write all changes to blob/fs in a single operation
   await flushCache();
-
-  // Bust the ISR cache so the home page picks up new translations
   revalidatePath('/');
 
   return NextResponse.json({ processed, skipped, failed, deleted, total: articles.length, errors: errors.slice(0, 5) });
