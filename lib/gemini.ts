@@ -71,10 +71,19 @@ Chinese text to process:
 ${chineseText}`;
 }
 
+let cachedModel: import('@google/generative-ai').GenerativeModel | null = null;
+
+async function getModel() {
+  if (!cachedModel) {
+    const { GoogleGenerativeAI } = await import('@google/generative-ai');
+    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
+    cachedModel = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+  }
+  return cachedModel;
+}
+
 async function geminiProcessChunk(text: string): Promise<ProcessedSentence[]> {
-  const { GoogleGenerativeAI } = await import('@google/generative-ai');
-  const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+  const model = await getModel();
 
   const result = await model.generateContent(buildPrompt(text));
   const raw = result.response.text();

@@ -2,7 +2,6 @@ import type { Token } from '@/lib/types';
 
 interface RubyTextProps {
   tokens: Token[];
-  className?: string;
 }
 
 // Only wrap tokens in <ruby> if they contain actual Chinese characters.
@@ -10,9 +9,9 @@ interface RubyTextProps {
 // whether the AI returned a pinyin value for them.
 const hasChinese = (text: string) => /[\u4e00-\u9fff\u3400-\u4dbf]/.test(text);
 
-export function RubyText({ tokens, className }: RubyTextProps) {
+export function RubyText({ tokens }: RubyTextProps) {
   return (
-    <span className={className}>
+    <span>
       {tokens.map((token, i) =>
         token.pinyin && hasChinese(token.text) ? (
           <ruby key={i}>
