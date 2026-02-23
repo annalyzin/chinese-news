@@ -37,6 +37,7 @@ export async function GET(request: NextRequest) {
       const result = await processArticle(text, article.title, article.article_id);
       await setCachedArticle(article.link, result);
       await flushCache(); // persist after each article so progress survives timeouts
+      revalidatePath('/'); // bust ISR cache so home page picks up new translations
       processed++;
     } catch (e) {
       failed++;
