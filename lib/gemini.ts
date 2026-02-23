@@ -70,7 +70,7 @@ async function getModel() {
   if (!cachedModel) {
     const { GoogleGenerativeAI } = await import('@google/generative-ai');
     const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
-    cachedModel = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+    cachedModel = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
   }
   return cachedModel;
 }
