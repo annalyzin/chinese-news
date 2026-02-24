@@ -32,28 +32,34 @@ export async function GET(request: NextRequest) {
     })
   );
 
-  // 4. Process all LLM calls in parallel (Groq allows 30 RPM / 14,400 RPD)
+  // 4. Process LLM calls in batches of 10 to stay within Groq TPM limits
   let processed = 0;
   let failed = 0;
   const errors: string[] = [];
+  const BATCH_SIZE = 10;
 
-  const results = await Promise.allSettled(
-    toProcess.map((a, i) => processArticle(scraped[i], a.title, a.article_id))
-  );
+  for (let b = 0; b < toProcess.length; b += BATCH_SIZE) {
+    const batch = toProcess.slice(b, b + BATCH_SIZE);
+    const batchScraped = scraped.slice(b, b + BATCH_SIZE);
 
-  for (let i = 0; i < results.length; i++) {
-    const r = results[i];
-    if (r.status === 'fulfilled') {
-      const key = toProcess[i].link;
-      // Never replace a real translation with a mock one
-      if (hasRealTranslation(r.value) || !hasRealTranslation(cache[key])) {
-        cache[key] = r.value;
+    const results = await Promise.allSettled(
+      batch.map((a, i) => processArticle(batchScraped[i], a.title, a.article_id))
+    );
+
+    for (let i = 0; i < results.length; i++) {
+      const r = results[i];
+      if (r.status === 'fulfilled') {
+        const key = batch[i].link;
+        // Never replace a real translation with a mock one
+        if (hasRealTranslation(r.value) || !hasRealTranslation(cache[key])) {
+          cache[key] = r.value;
+        }
+        processed++;
+      } else {
+        const msg = r.reason instanceof Error ? r.reason.message : String(r.reason);
+        failed++;
+        errors.push(`${batch[i].title}: ${msg}`);
       }
-      processed++;
-    } else {
-      const msg = r.reason instanceof Error ? r.reason.message : String(r.reason);
-      failed++;
-      errors.push(`${toProcess[i].title}: ${msg}`);
     }
   }
 
@@ -62,9 +68,12 @@ export async function GET(request: NextRequest) {
   const staleKeys = Object.keys(cache).filter((url) => !currentUrls.has(url));
   for (const key of staleKeys) delete cache[key];
 
-  // 6. Persist + revalidate
-  await saveCache(cache);
-  revalidatePath('/');
+  // 6. Persist + revalidate (skip if nothing changed)
+  const changed = processed > 0 || staleKeys.length > 0;
+  if (changed) {
+    await saveCache(cache);
+    revalidatePath('/');
+  }
 
   return NextResponse.json({
     processed, skipped, failed,

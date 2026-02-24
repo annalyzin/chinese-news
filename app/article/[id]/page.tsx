@@ -13,12 +13,10 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
   const { id } = await params;
   const articleId = decodeURIComponent(id);
 
-  const articles = await fetchNews();
+  const [articles, cache] = await Promise.all([fetchNews(), loadCache()]);
   const article = articles.find((a) => a.article_id === articleId);
 
   if (!article) notFound();
-
-  const cache = await loadCache();
   const raw = cache[article.link] ?? null;
   // Only use processed data if it has real (non-mock) translations
   const processed = hasRealTranslation(raw) ? raw : null;

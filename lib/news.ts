@@ -11,7 +11,6 @@ type EightworldItem = {
   title?: string;
   contentSnippet?: string;
   pubDate?: string;
-  categories?: string[];
   // media:thumbnail has a url attribute parsed as $
   'media:thumbnail'?: { $?: { url?: string } };
 };
@@ -38,7 +37,6 @@ export async function fetchNews(): Promise<NewsArticle[]> {
         description: item.contentSnippet ?? null,
         pubDate: item.pubDate ?? new Date().toISOString(),
         image_url: imageUrl,
-        category: item.categories ?? ['新加坡'],
       };
     });
 }

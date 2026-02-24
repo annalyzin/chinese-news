@@ -10,7 +10,7 @@ const inter = Inter({
 });
 
 const notoSansSC = Noto_Sans_SC({
-  weight: ['300', '400', '500', '700'],
+  weight: ['400', '500', '700'],
   subsets: ['latin'],
   display: 'swap',
   variable: '--font-noto-sc',

@@ -5,7 +5,6 @@ export interface NewsArticle {
   description: string | null;
   pubDate: string;
   image_url: string | null;
-  category: string[];
 }
 
 export interface Token {

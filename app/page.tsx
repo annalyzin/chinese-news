@@ -11,14 +11,17 @@ export default async function HomePage() {
   let articles: NewsArticle[] = [];
   let error: string | null = null;
 
-  try {
-    articles = await fetchNews();
-  } catch (e) {
-    error = e instanceof Error ? e.message : 'Failed to load news';
-  }
+  // Fetch news + cache in parallel
+  const [newsResult, cache] = await Promise.all([
+    fetchNews().catch((e: unknown) => e),
+    loadCache(),
+  ]);
 
-  // Load cache once and extract real (non-mock) titles
-  const cache = await loadCache();
+  if (newsResult instanceof Error) {
+    error = newsResult.message;
+  } else if (Array.isArray(newsResult)) {
+    articles = newsResult;
+  }
   const titles = articles.map((a) => {
     const processed = cache[a.link];
     return hasRealTranslation(processed) ? processed!.titleEnglish : null;
