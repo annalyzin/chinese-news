@@ -1,7 +1,9 @@
 import { notFound } from 'next/navigation';
+import { revalidatePath } from 'next/cache';
 import { fetchNews } from '@/lib/news';
-import { loadCache } from '@/lib/article-cache';
-import { hasRealTranslation } from '@/lib/llm';
+import { loadCache, saveCache } from '@/lib/article-cache';
+import { hasRealTranslation, processArticle } from '@/lib/llm';
+import { scrapeArticleText } from '@/lib/scraper';
 import { SentenceBlock } from '@/app/components/SentenceBlock';
 import { ArticleHeader } from '@/app/components/ArticleHeader';
 
@@ -17,21 +19,38 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
   const article = articles.find((a) => a.article_id === articleId);
 
   if (!article) notFound();
-  const raw = cache[article.link] ?? null;
-  // Only use processed data if it has real (non-mock) translations
-  const processed = hasRealTranslation(raw) ? raw : null;
+
+  let processed = cache[article.link] ?? null;
+
+  // On-demand translation: if no real translation exists, translate now
+  if (!hasRealTranslation(processed)) {
+    try {
+      const text = await scrapeArticleText(article.link) || article.description || article.title;
+      const result = await processArticle(text, article.title, article.article_id);
+      if (hasRealTranslation(result)) {
+        cache[article.link] = result;
+        await saveCache(cache);
+        revalidatePath('/');
+        processed = result;
+      }
+    } catch {
+      // Translation failed — show article without translations
+    }
+  }
+
+  const translated = hasRealTranslation(processed) ? processed : null;
 
   return (
     <main className="max-w-3xl mx-auto px-4 sm:px-6 py-10">
       <ArticleHeader
         article={article}
-        titleSentence={processed?.titleSentence}
-        titleEnglish={processed?.titleEnglish}
+        titleSentence={translated?.titleSentence}
+        titleEnglish={translated?.titleEnglish}
       />
 
-      {processed ? (
+      {translated ? (
         <article>
-          {processed.sentences.map((sentence, i) => (
+          {translated.sentences.map((sentence, i) => (
             <SentenceBlock key={i} sentence={sentence} />
           ))}
         </article>
