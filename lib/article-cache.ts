@@ -21,7 +21,7 @@ export async function loadCache(): Promise<ArticlesCache> {
     const { list } = await import('@vercel/blob');
     const { blobs } = await list({ prefix: BLOB_KEY, limit: 1 });
     if (blobs.length === 0) return {};
-    const res = await fetch(blobs[0].url);
+    const res = await fetch(blobs[0].url, { cache: 'no-store' });
     if (!res.ok) return {};
     return (await res.json()) as ArticlesCache;
   }
