@@ -1,6 +1,8 @@
 import { fetchNews } from '@/lib/news';
-import { loadCache } from '@/lib/article-cache';
+import { loadCache, saveCache, type ArticlesCache } from '@/lib/article-cache';
 import { hasRealTranslation } from '@/lib/llm';
+import { translateArticles } from '@/lib/translate-batch';
+import { formatArticleDate } from '@/lib/format';
 import type { NewsArticle } from '@/lib/types';
 import { ArticleCard } from './components/ArticleCard';
 
@@ -9,32 +11,41 @@ export const revalidate = 86400;
 
 export default async function HomePage() {
   let articles: NewsArticle[] = [];
+  let cache: ArticlesCache = {};
   let error: string | null = null;
 
-  // Fetch news + cache in parallel
-  const [newsResult, cache] = await Promise.all([
-    fetchNews().catch((e: unknown) => e),
+  // Fetch news + cache in parallel; catch both independently
+  const [newsResult, cacheResult] = await Promise.allSettled([
+    fetchNews(),
     loadCache(),
   ]);
 
-  if (newsResult instanceof Error) {
-    error = newsResult.message;
-  } else if (Array.isArray(newsResult)) {
-    articles = newsResult;
+  if (newsResult.status === 'fulfilled') {
+    articles = newsResult.value;
+  } else {
+    error = newsResult.reason instanceof Error
+      ? newsResult.reason.message
+      : String(newsResult.reason);
   }
+  if (cacheResult.status === 'fulfilled') {
+    cache = cacheResult.value;
+  }
+
+  // On-demand: translate any articles missing real translations
+  const untranslated = articles.filter((a) => !hasRealTranslation(cache[a.link]));
+  if (untranslated.length > 0) {
+    const { translated } = await translateArticles(untranslated, cache);
+    if (translated > 0) await saveCache(cache);
+  }
+
   const titles = articles.map((a) => {
     const processed = cache[a.link];
-    return hasRealTranslation(processed) ? processed!.titleEnglish : null;
+    return hasRealTranslation(processed) ? processed.titleEnglish : null;
   });
 
   // Use the date from the first article (all are from the same daily feed)
   const todayFormatted = articles.length > 0
-    ? new Date(articles[0].pubDate).toLocaleDateString('en-US', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      })
+    ? formatArticleDate(articles[0].pubDate)
     : null;
 
   return (

@@ -5,14 +5,16 @@ import type { ProcessedArticle, ProcessedSentence, Token } from './types';
 const FORCE_MOCK = false;
 const useLLM = !FORCE_MOCK && !!process.env.GROQ_API_KEY;
 
-export const MOCK_TRANSLATION = '[mock translation]';
+const MOCK_TRANSLATION = '[mock translation]';
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const GROQ_MODEL = 'llama-3.3-70b-versatile';
 const MAX_BODY_CHARS = 2000;
 
-/** Returns true if the processed article has real (non-mock) translations. */
-export function hasRealTranslation(processed: ProcessedArticle | null): boolean {
+/** Type guard: narrows to ProcessedArticle when the article has real (non-mock) translations. */
+export function hasRealTranslation(
+  processed: ProcessedArticle | null | undefined
+): processed is ProcessedArticle {
   if (!processed) return false;
   return !!processed.titleEnglish && processed.titleEnglish !== MOCK_TRANSLATION;
 }

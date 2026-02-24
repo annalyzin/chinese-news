@@ -1,3 +1,4 @@
+import { formatArticleDate } from '@/lib/format';
 import type { NewsArticle, ProcessedSentence } from '@/lib/types';
 import Link from 'next/link';
 import { RubyText } from './RubyText';
@@ -9,12 +10,7 @@ interface ArticleHeaderProps {
 }
 
 export function ArticleHeader({ article, titleSentence, titleEnglish }: ArticleHeaderProps) {
-  const formattedDate = new Date(article.pubDate).toLocaleDateString('en-US', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
+  const formattedDate = formatArticleDate(article.pubDate);
 
   return (
     <header className="mb-8">
