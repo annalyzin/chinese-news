@@ -22,14 +22,12 @@ export async function scrapeArticleText(url: string): Promise<string | null> {
 
     if (!article?.textContent) return null;
 
-    // Strip 8world UI boilerplate that Readability picks up
+    // Strip 8world UI boilerplate that Readability picks up (single pass)
     const cleaned = article.textContent
-      .replace(/新功能[!！]?\s*/g, '')
-      .replace(/New feature[!！]?\s*/gi, '')
-      .replace(/听新闻[，,]按这里[!！]?\s*/g, '')
-      .replace(/Listen to the news[,，] click here[!！]?\s*/gi, '')
-      .replace(/我要听[，,]按这里[!！]?\s*/g, '')
-      .replace(/I want to listen[,，] click here[!！]?\s*/gi, '')
+      .replace(
+        /新功能[!！]?\s*|New feature[!！]?\s*|听新闻[，,]按这里[!！]?\s*|Listen to the news[,，] click here[!！]?\s*|我要听[，,]按这里[!！]?\s*|I want to listen[,，] click here[!！]?\s*/gi,
+        ''
+      )
       .trim();
 
     return cleaned || null;

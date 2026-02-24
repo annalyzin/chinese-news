@@ -14,6 +14,7 @@ export interface TranslateResult {
 /**
  * Scrape and translate articles that lack real translations.
  * Mutates `cache` in-place with new translations.
+ * Scrapes and processes per-batch to limit peak memory usage.
  */
 export async function translateArticles(
   articles: NewsArticle[],
@@ -21,28 +22,27 @@ export async function translateArticles(
 ): Promise<TranslateResult> {
   if (articles.length === 0) return { translated: 0, failed: 0, errors: [] };
 
-  // Scrape all in parallel
-  const scraped = await Promise.all(
-    articles.map(async (a) => {
-      try {
-        return (await scrapeArticleText(a.link)) || a.description || a.title;
-      } catch {
-        return a.description || a.title;
-      }
-    })
-  );
-
-  // Process LLM calls in batches to stay within Groq TPM limits
   let translated = 0;
   let failed = 0;
   const errors: string[] = [];
 
   for (let b = 0; b < articles.length; b += BATCH_SIZE) {
     const batch = articles.slice(b, b + BATCH_SIZE);
-    const batchScraped = scraped.slice(b, b + BATCH_SIZE);
 
+    // Scrape this batch in parallel
+    const scraped = await Promise.all(
+      batch.map(async (a) => {
+        try {
+          return (await scrapeArticleText(a.link)) || a.description || a.title;
+        } catch {
+          return a.description || a.title;
+        }
+      })
+    );
+
+    // Translate this batch in parallel
     const results = await Promise.allSettled(
-      batch.map((a, i) => processArticle(batchScraped[i], a.title, a.article_id))
+      batch.map((a, i) => processArticle(scraped[i], a.title, a.article_id))
     );
 
     for (let i = 0; i < results.length; i++) {

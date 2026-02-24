@@ -1,13 +1,13 @@
 import { fetchNews } from '@/lib/news';
 import { loadCache, saveCache, type ArticlesCache } from '@/lib/article-cache';
-import { hasRealTranslation } from '@/lib/llm';
+import { hasRealTranslation, shouldReprocess } from '@/lib/llm';
 import { translateArticles } from '@/lib/translate-batch';
 import { formatArticleDate } from '@/lib/format';
 import type { NewsArticle } from '@/lib/types';
 import { ArticleCard } from './components/ArticleCard';
 
-// Revalidate every 24 hours
-export const revalidate = 86400;
+// Revalidate every hour — ensures failed translations are retried promptly
+export const revalidate = 3600;
 
 export default async function HomePage() {
   let articles: NewsArticle[] = [];
@@ -31,8 +31,8 @@ export default async function HomePage() {
     cache = cacheResult.value;
   }
 
-  // On-demand: translate any articles missing real translations
-  const untranslated = articles.filter((a) => !hasRealTranslation(cache[a.link]));
+  // On-demand: translate any articles missing real translations (skips mocks when LLM is disabled)
+  const untranslated = articles.filter((a) => shouldReprocess(cache[a.link] ?? null));
   if (untranslated.length > 0) {
     const { translated } = await translateArticles(untranslated, cache);
     if (translated > 0) await saveCache(cache);

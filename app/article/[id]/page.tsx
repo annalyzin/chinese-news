@@ -2,8 +2,8 @@ import { notFound } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { fetchNews } from '@/lib/news';
 import { loadCache, saveCache } from '@/lib/article-cache';
-import { hasRealTranslation, processArticle } from '@/lib/llm';
-import { scrapeArticleText } from '@/lib/scraper';
+import { hasRealTranslation, shouldReprocess } from '@/lib/llm';
+import { translateArticles } from '@/lib/translate-batch';
 import { SentenceBlock } from '@/app/components/SentenceBlock';
 import { ArticleHeader } from '@/app/components/ArticleHeader';
 
@@ -20,24 +20,16 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
 
   if (!article) notFound();
 
-  let processed = cache[article.link] ?? null;
-
   // On-demand translation: if no real translation exists, translate now
-  if (!hasRealTranslation(processed)) {
-    try {
-      const text = await scrapeArticleText(article.link) || article.description || article.title;
-      const result = await processArticle(text, article.title, article.article_id);
-      if (hasRealTranslation(result)) {
-        cache[article.link] = result;
-        await saveCache(cache);
-        revalidatePath('/');
-        processed = result;
-      }
-    } catch {
-      // Translation failed — show article without translations
+  if (shouldReprocess(cache[article.link] ?? null)) {
+    const { translated } = await translateArticles([article], cache);
+    if (translated > 0) {
+      await saveCache(cache);
+      revalidatePath('/');
     }
   }
 
+  const processed = cache[article.link];
   const translated = hasRealTranslation(processed) ? processed : null;
 
   return (
