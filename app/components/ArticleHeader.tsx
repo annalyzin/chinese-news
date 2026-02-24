@@ -35,15 +35,8 @@ export function ArticleHeader({ article, titleSentence, titleEnglish }: ArticleH
         All articles
       </Link>
 
-      {/* Category + date */}
-      <div className="flex items-center gap-2 mb-4 flex-wrap">
-        {article.category?.[0] && (
-          <span className="text-xs font-medium text-red-600 bg-red-50 rounded-full px-2.5 py-0.5 uppercase tracking-wide">
-            {article.category[0]}
-          </span>
-        )}
-        <span className="text-xs text-gray-400">{formattedDate}</span>
-      </div>
+      {/* Date */}
+      <p className="text-xs text-gray-400 mb-4">{formattedDate}</p>
 
       {/* Title — pinyin version if processed, plain text otherwise */}
       {titleSentence ? (

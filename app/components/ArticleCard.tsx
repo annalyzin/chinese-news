@@ -10,12 +10,6 @@ interface ArticleCardProps {
 export function ArticleCard({ article, titleEnglish }: ArticleCardProps) {
   const href = `/article/${encodeURIComponent(article.article_id)}`;
 
-  const formattedDate = new Date(article.pubDate).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
-
   return (
     <Link
       href={href}
@@ -24,7 +18,7 @@ export function ArticleCard({ article, titleEnglish }: ArticleCardProps) {
     >
       {/* Thumbnail */}
       {article.image_url && (
-        <div className="relative h-44 w-full bg-gray-100 flex-shrink-0">
+        <div className="relative h-40 w-full bg-gray-100 flex-shrink-0">
           <Image
             src={article.image_url}
             alt={article.title}
@@ -35,32 +29,19 @@ export function ArticleCard({ article, titleEnglish }: ArticleCardProps) {
         </div>
       )}
 
-      <div className="flex flex-col flex-1 p-5">
-        {/* Category chip */}
-        {article.category?.[0] && (
-          <span className="inline-block self-start text-xs font-medium text-red-600
-                           bg-red-50 rounded-full px-2.5 py-0.5 mb-3 uppercase tracking-wide">
-            {article.category[0]}
-          </span>
-        )}
-
+      <div className="flex flex-col flex-1 p-4">
         {/* Chinese title */}
         <h2 className="font-noto text-gray-900 text-base font-medium leading-snug
-                        mb-1 line-clamp-3 group-hover:text-red-700 transition-colors">
+                        line-clamp-3 group-hover:text-red-700 transition-colors">
           {article.title}
         </h2>
 
         {/* English title translation */}
         {titleEnglish && (
-          <p className="text-gray-400 text-xs leading-snug mb-3 line-clamp-2">
+          <p className="text-gray-400 text-xs leading-snug mt-1.5 line-clamp-2">
             {titleEnglish}
           </p>
         )}
-
-        {/* Date */}
-        <div className="flex items-center justify-end text-xs text-gray-400 mt-auto pt-3 border-t border-gray-50">
-          <span>{formattedDate}</span>
-        </div>
       </div>
     </Link>
   );

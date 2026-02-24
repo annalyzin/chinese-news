@@ -11,11 +11,16 @@ const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const GROQ_MODEL = 'llama-3.3-70b-versatile';
 const MAX_BODY_CHARS = 2000;
 
+/** Returns true if the processed article has real (non-mock) translations. */
+export function hasRealTranslation(processed: ProcessedArticle | null): boolean {
+  if (!processed) return false;
+  return !!processed.titleEnglish && processed.titleEnglish !== MOCK_TRANSLATION;
+}
+
 /** Returns true if the cached article should be re-processed. */
 export function shouldReprocess(cached: ProcessedArticle | null): boolean {
-  if (!cached) return true;
-  if (!cached.processedAt) return true;
-  return cached.titleEnglish === MOCK_TRANSLATION && useLLM;
+  if (!cached || !cached.processedAt) return true;
+  return !hasRealTranslation(cached) && useLLM;
 }
 
 // ── Groq / LLM implementation ───────────────────────────────────────────────

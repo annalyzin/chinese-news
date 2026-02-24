@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { revalidatePath } from 'next/cache';
 import { fetchNews } from '@/lib/news';
-import { processArticle, shouldReprocess } from '@/lib/llm';
+import { processArticle, shouldReprocess, hasRealTranslation } from '@/lib/llm';
 import { scrapeArticleText } from '@/lib/scraper';
 import { loadCache, saveCache } from '@/lib/article-cache';
 
@@ -44,7 +44,11 @@ export async function GET(request: NextRequest) {
   for (let i = 0; i < results.length; i++) {
     const r = results[i];
     if (r.status === 'fulfilled') {
-      cache[toProcess[i].link] = r.value;
+      const key = toProcess[i].link;
+      // Never replace a real translation with a mock one
+      if (hasRealTranslation(r.value) || !hasRealTranslation(cache[key])) {
+        cache[key] = r.value;
+      }
       processed++;
     } else {
       const msg = r.reason instanceof Error ? r.reason.message : String(r.reason);
